@@ -252,6 +252,24 @@ Note: Webcam access requires HTTPS in production or localhost for development.
 - Reduce browser window size
 - Check CPU usage
 
+## Security
+
+This project follows security best practices:
+
+- **Dependencies**: All Python dependencies are regularly updated to patched versions to address known vulnerabilities
+- **WebSocket Security**: The WebSocket connection is designed for localhost use during development
+- **Data Privacy**: All video processing happens locally on your machine; no data is sent to external servers
+- **Camera Access**: The application only accesses your webcam when you explicitly grant permission
+
+### Known Security Considerations
+
+- The frontend uses `react-scripts` which has some dev dependencies with known issues. These are development-time only and do not affect production builds.
+- For production deployment, consider:
+  - Using HTTPS for the frontend
+  - Implementing WebSocket authentication
+  - Setting up proper CORS policies
+  - Running the backend behind a reverse proxy
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
