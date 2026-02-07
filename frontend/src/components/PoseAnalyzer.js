@@ -18,6 +18,7 @@ const PoseAnalyzer = ({ exerciseMode, onConnectionChange }) => {
   const canvasRef = useRef(null);
   const wsRef = useRef(null);
   const animationRef = useRef(null);
+  const feedbackKeyCounter = useRef(0);
   
   const [landmarks, setLandmarks] = useState([]);
   const [repCount, setRepCount] = useState(0);
@@ -33,6 +34,7 @@ const PoseAnalyzer = ({ exerciseMode, onConnectionChange }) => {
       
       ws.onopen = () => {
         console.log('WebSocket connected');
+        setError(null); // Clear any previous errors
         onConnectionChange('connected');
       };
       
@@ -46,11 +48,19 @@ const PoseAnalyzer = ({ exerciseMode, onConnectionChange }) => {
           if (exerciseMode === 'bicep_curl' && data.bicep_curl_analysis) {
             setRepCount(data.bicep_curl_analysis.count);
             setCurrentAngle(data.bicep_curl_analysis.angle);
-            setFeedback(data.bicep_curl_analysis.feedback);
+            // Add unique IDs to feedback items
+            setFeedback(data.bicep_curl_analysis.feedback.map(item => ({
+              id: ++feedbackKeyCounter.current,
+              text: item
+            })));
           } else if (exerciseMode === 'squat' && data.squat_analysis) {
             setRepCount(data.squat_analysis.count);
             setCurrentAngle(data.squat_analysis.angle);
-            setFeedback(data.squat_analysis.feedback);
+            // Add unique IDs to feedback items
+            setFeedback(data.squat_analysis.feedback.map(item => ({
+              id: ++feedbackKeyCounter.current,
+              text: item
+            })));
           }
         }
       };
@@ -234,9 +244,9 @@ const PoseAnalyzer = ({ exerciseMode, onConnectionChange }) => {
           <h3>Real-time Feedback</h3>
           {feedback.length > 0 ? (
             <ul className="feedback-list">
-              {feedback.map((item, idx) => (
-                <li key={`${item}-${idx}`} className="feedback-item">
-                  {item}
+              {feedback.map((item) => (
+                <li key={item.id} className="feedback-item">
+                  {item.text}
                 </li>
               ))}
             </ul>
