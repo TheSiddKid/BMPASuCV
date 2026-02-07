@@ -33,6 +33,7 @@ const PoseAnalyzer = ({ exerciseMode, onConnectionChange }) => {
       
       ws.onopen = () => {
         console.log('WebSocket connected');
+        setError(null); // Clear any previous errors
         onConnectionChange('connected');
       };
       
