@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import Webcam from 'react-webcam';
+import config from '../config';
 import './PoseAnalyzer.css';
 
 const POSE_CONNECTIONS = [
@@ -28,7 +29,7 @@ const PoseAnalyzer = ({ exerciseMode, onConnectionChange }) => {
   const connectWebSocket = useCallback(() => {
     try {
       onConnectionChange('connecting');
-      const ws = new WebSocket('ws://localhost:8000/ws/pose');
+      const ws = new WebSocket(config.WEBSOCKET_URL);
       
       ws.onopen = () => {
         console.log('WebSocket connected');
@@ -234,7 +235,7 @@ const PoseAnalyzer = ({ exerciseMode, onConnectionChange }) => {
           {feedback.length > 0 ? (
             <ul className="feedback-list">
               {feedback.map((item, idx) => (
-                <li key={idx} className="feedback-item">
+                <li key={`${item}-${idx}`} className="feedback-item">
                   {item}
                 </li>
               ))}

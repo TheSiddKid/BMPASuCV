@@ -5,6 +5,7 @@ import mediapipe as mp
 import numpy as np
 import base64
 import json
+import asyncio
 from typing import Dict, List, Tuple
 
 app = FastAPI()
@@ -23,8 +24,9 @@ mp_pose = mp.solutions.pose
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 
-# Exercise state tracking
+# Exercise state tracking - using asyncio.Lock for thread safety
 exercise_states = {}
+state_lock = asyncio.Lock()
 
 
 def calculate_angle(a: Tuple[float, float], b: Tuple[float, float], c: Tuple[float, float]) -> float:
@@ -42,17 +44,19 @@ def calculate_angle(a: Tuple[float, float], b: Tuple[float, float], c: Tuple[flo
     return angle
 
 
-def analyze_bicep_curl(landmarks, client_id: str) -> Dict:
+async def analyze_bicep_curl(landmarks, client_id: str) -> Dict:
     """Analyze bicep curl form and count reps"""
-    if client_id not in exercise_states:
-        exercise_states[client_id] = {
-            'bicep_curl_count': 0,
-            'bicep_curl_stage': None,
-            'squat_count': 0,
-            'squat_stage': None
-        }
+    async with state_lock:
+        if client_id not in exercise_states:
+            exercise_states[client_id] = {
+                'bicep_curl_count': 0,
+                'bicep_curl_stage': None,
+                'squat_count': 0,
+                'squat_stage': None
+            }
+        
+        state = exercise_states[client_id]
     
-    state = exercise_states[client_id]
     feedback = []
     
     # Get coordinates for right arm
@@ -67,13 +71,14 @@ def analyze_bicep_curl(landmarks, client_id: str) -> Dict:
     angle = calculate_angle(shoulder, elbow, wrist)
     
     # Count reps and provide feedback
-    if angle > 160:
-        state['bicep_curl_stage'] = "down"
-        feedback.append("Arm extended")
-    if angle < 30 and state['bicep_curl_stage'] == 'down':
-        state['bicep_curl_stage'] = "up"
-        state['bicep_curl_count'] += 1
-        feedback.append("Good rep!")
+    async with state_lock:
+        if angle > 160:
+            state['bicep_curl_stage'] = "down"
+            feedback.append("Arm extended")
+        if angle < 30 and state['bicep_curl_stage'] == 'down':
+            state['bicep_curl_stage'] = "up"
+            state['bicep_curl_count'] += 1
+            feedback.append("Good rep!")
     
     # Form feedback
     if 30 <= angle <= 160:
@@ -90,17 +95,19 @@ def analyze_bicep_curl(landmarks, client_id: str) -> Dict:
     }
 
 
-def analyze_squat(landmarks, client_id: str) -> Dict:
+async def analyze_squat(landmarks, client_id: str) -> Dict:
     """Analyze squat form and count reps"""
-    if client_id not in exercise_states:
-        exercise_states[client_id] = {
-            'bicep_curl_count': 0,
-            'bicep_curl_stage': None,
-            'squat_count': 0,
-            'squat_stage': None
-        }
+    async with state_lock:
+        if client_id not in exercise_states:
+            exercise_states[client_id] = {
+                'bicep_curl_count': 0,
+                'bicep_curl_stage': None,
+                'squat_count': 0,
+                'squat_stage': None
+            }
+        
+        state = exercise_states[client_id]
     
-    state = exercise_states[client_id]
     feedback = []
     
     # Get coordinates for right leg
@@ -115,13 +122,14 @@ def analyze_squat(landmarks, client_id: str) -> Dict:
     angle = calculate_angle(hip, knee, ankle)
     
     # Count reps and provide feedback
-    if angle > 160:
-        state['squat_stage'] = "up"
-        feedback.append("Standing position")
-    if angle < 90 and state['squat_stage'] == 'up':
-        state['squat_stage'] = "down"
-        state['squat_count'] += 1
-        feedback.append("Good squat!")
+    async with state_lock:
+        if angle > 160:
+            state['squat_stage'] = "up"
+            feedback.append("Standing position")
+        if angle < 90 and state['squat_stage'] == 'up':
+            state['squat_stage'] = "down"
+            state['squat_count'] += 1
+            feedback.append("Good squat!")
         
     # Form feedback
     if 90 <= angle <= 160:
@@ -205,11 +213,11 @@ async def websocket_pose_endpoint(websocket: WebSocket):
                     exercise_mode = message.get('exercise', 'bicep_curl')
                     
                     if exercise_mode == 'bicep_curl':
-                        response['bicep_curl_analysis'] = analyze_bicep_curl(
+                        response['bicep_curl_analysis'] = await analyze_bicep_curl(
                             results.pose_landmarks.landmark, client_id
                         )
                     elif exercise_mode == 'squat':
-                        response['squat_analysis'] = analyze_squat(
+                        response['squat_analysis'] = await analyze_squat(
                             results.pose_landmarks.landmark, client_id
                         )
                 
@@ -218,19 +226,21 @@ async def websocket_pose_endpoint(websocket: WebSocket):
             
             elif message['type'] == 'reset':
                 # Reset exercise state
-                if client_id in exercise_states:
-                    exercise_states[client_id] = {
-                        'bicep_curl_count': 0,
-                        'bicep_curl_stage': None,
-                        'squat_count': 0,
-                        'squat_stage': None
-                    }
+                async with state_lock:
+                    if client_id in exercise_states:
+                        exercise_states[client_id] = {
+                            'bicep_curl_count': 0,
+                            'bicep_curl_stage': None,
+                            'squat_count': 0,
+                            'squat_stage': None
+                        }
                 await websocket.send_text(json.dumps({'status': 'reset'}))
                 
     except WebSocketDisconnect:
         # Clean up state when client disconnects
-        if client_id in exercise_states:
-            del exercise_states[client_id]
+        async with state_lock:
+            if client_id in exercise_states:
+                del exercise_states[client_id]
         pose.close()
     except Exception as e:
         print(f"Error: {e}")
