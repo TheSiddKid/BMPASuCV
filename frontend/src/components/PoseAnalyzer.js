@@ -235,7 +235,7 @@ const PoseAnalyzer = ({ exerciseMode, onConnectionChange }) => {
           {feedback.length > 0 ? (
             <ul className="feedback-list">
               {feedback.map((item, idx) => (
-                <li key={`${item}-${idx}`} className="feedback-item">
+                <li key={`feedback-${idx}-${item.substring(0, 20)}`} className="feedback-item">
                   {item}
                 </li>
               ))}
